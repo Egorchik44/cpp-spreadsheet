@@ -11,6 +11,7 @@
 
 class Sheet;
 
+
 enum class CellState {
     NotVisited, 
     Visiting, 
@@ -22,7 +23,16 @@ public:
     Cell(Sheet& sheet);
     ~Cell();
 
+
+    
     void Set(std::string text, Position pos, Sheet* sheet);
+
+    
+
+    
+
+    
+    
     void Clear();
 
     Value GetValue() const override;
@@ -43,6 +53,17 @@ private:
     bool hasCircularDependency( Cell* cell, std::set<Cell*>& visitedPos, const Position pos_const);
     bool CheckCircularDependencies( const Impl& new_impl, Position pos);
 
+    std::unique_ptr<Impl> ChooseImplementation(std::string text, Sheet* sheet);
+
+    std::unique_ptr<Cell::Impl> CreateFormulaImplementation(std::string text, Sheet* sheet);
+
+    void HandleCircularDependencies(const Impl& impl, Position pos);
+
+    void SetImplementation(std::unique_ptr<Impl> impl);
+
+    void ProcessDependentCells(Sheet* sheet);
+
+
     class Impl {
     public:
         virtual Value GetValue() const = 0;
@@ -53,6 +74,8 @@ private:
         virtual void ResetCache();
 
         virtual ~Impl() = default;
+
+
     };
 
 

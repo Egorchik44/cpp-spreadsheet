@@ -1,14 +1,13 @@
 #pragma once
 
+#include <iostream>
 #include <map>
 #include <set>
-#include <string>
-#include <vector>
 #include <sstream>
-#include <iostream>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
-
+#include <vector>
 
 namespace TestRunnerPrivate {
   template <typename K, typename V, template <typename, typename> class Map>

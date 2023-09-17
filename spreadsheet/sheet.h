@@ -12,6 +12,8 @@ class Sheet : public SheetInterface {
 public:
     ~Sheet();
 
+    void EnsurePositionIsValid(Position pos) const;
+
     void SetCell(Position pos, std::string text) override;
 
     CellInterface* GetCell(Position pos) override;

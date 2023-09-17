@@ -14,63 +14,84 @@ Cell::Cell(Sheet& sheet) : impl_(std::make_unique<EmptyImpl>()),
                            sheet_(sheet) {}
 Cell::~Cell() = default;
 
-void Cell::Set(std::string text, Position pos, Sheet* sheet) { 
-    std::unique_ptr<Impl> impl;
+// Установка текста и выбор типа имплементации
+void Cell::Set(std::string text, Position pos, Sheet* sheet) {
     pos_ = pos;
+    std::unique_ptr<Impl> impl = ChooseImplementation(std::move(text), sheet);
+    HandleCircularDependencies(*impl, pos);
+    SetImplementation(std::move(impl));
+    ProcessDependentCells(sheet);
+    ResetCache(true);
+}
 
+// Выбор типа имплементации в зависимости от текста
+std::unique_ptr<Cell::Impl> Cell::ChooseImplementation(std::string text, Sheet* sheet) {
+    std::unique_ptr<Impl> impl;
     std::forward_list<Position> set_formula_cells;
 
     if (text.empty()) {
         impl = std::make_unique<EmptyImpl>();
-    } else if (text.size() >= 2 && text[0] == FORMULA_SIGN) {
-        impl = std::make_unique<FormulaImpl>(std::move(text), sheet_);
-        auto new_iterim_formula = impl->GetText();
-
-        std::string text_copy = text;
-
-        if (text_copy.size() > 0 && text_copy[0] == FORMULA_SIGN) {
-            text_copy = text_copy.substr(1); 
-
-            Position pos_link = Position::FromString(text_copy);
-            if (pos_link.IsValid() && !sheet->GetCell(pos_link)  ) {
-                sheet->SetCell(pos_link, "");
-            }
-        }
-
-    } else {
-        impl= std::make_unique<TextImpl>(std::move(text));
+    }
+    else if (text.size() >= 2 && text[0] == FORMULA_SIGN) {
+        impl = CreateFormulaImplementation(std::move(text), sheet);
+    }
+    else {
+        impl = std::make_unique<TextImpl>(std::move(text));
     }
 
-    if (CheckCircularDependencies(*impl,  pos)) {
+    return impl;
+}
 
+// Обработка формулы
+std::unique_ptr<Cell::Impl> Cell::CreateFormulaImplementation(std::string text, Sheet* sheet) {
+    std::unique_ptr<FormulaImpl> formula_impl = std::make_unique<FormulaImpl>(std::move(text), *sheet);
+    auto new_interim_formula = formula_impl->GetText();
+
+    std::string text_copy = text;
+    if (text_copy.size() > 0 && text_copy[0] == FORMULA_SIGN) {
+        text_copy = text_copy.substr(1);
+        Position pos_link = Position::FromString(text_copy);
+
+        if (pos_link.IsValid() && !sheet->GetCell(pos_link)) {
+            sheet->SetCell(pos_link, "");
+        }
+    }
+
+    return formula_impl;
+}
+
+// Проверка на циклические зависимости
+void Cell::HandleCircularDependencies(const Impl& impl, Position pos) {
+    if (CheckCircularDependencies(impl, pos)) {
         throw CircularDependencyException("Circular dependence is found");
     }
+}
 
-    auto second_st = this->pos_.ToString();
-
+// Установка новой имплементации
+void Cell::SetImplementation(std::unique_ptr<Impl> impl) {
     impl_ = std::move(impl);
+}
 
+// Обработка зависимых ячеек
+void Cell::ProcessDependentCells(Sheet* sheet) {
     for (Cell* used : using_cells_) {
-        auto third_st = used->pos_.ToString();
         used->calculated_cells_.erase(this);
     }
-
     using_cells_.clear();
 
-    auto iterim_st = impl_->GetText();
-    for (const auto& pos : impl_->GetReferencedCells()) {
-        auto four_st = pos_.ToString();
-        Cell* used = sheet_.GetConcreteCell(pos);
-        if (!used ) {
-            sheet_.SetCell(pos, "");
-            used  = sheet_.GetConcreteCell(pos);
-        }
-        auto five_st = used->pos_.ToString();
-        using_cells_.insert(used );
-        used ->calculated_cells_.insert(this);
-    }
+    auto interim_st = impl_->GetText();
 
-    ResetCache(true);
+    for (const auto& pos : impl_->GetReferencedCells()) {
+        Cell* used = sheet->GetConcreteCell(pos);
+
+        if (!used) {
+            sheet->SetCell(pos, "");
+            used = sheet->GetConcreteCell(pos);
+        }
+
+        using_cells_.insert(used);
+        used->calculated_cells_.insert(this);
+    }
 }
 
 
